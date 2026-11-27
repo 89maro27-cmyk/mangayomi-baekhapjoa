@@ -1,0 +1,22 @@
+[
+  {
+    "itemType": 0,
+    "isManga": true,
+    "typeSource": "single",
+    "sourceCodeLanguage": 1,
+    "appMinVerReq": "0.5.0",
+    "hasCloudflare": false,
+    "isFullData": false,
+    "dateFormat": "",
+    "dateFormatLocale": "",
+    "id": 123520101,
+    "name": "백합조아 (티스토리)",
+    "lang": "ko",
+    "baseUrl": "https://123zxcv52.tistory.com",
+    "version": "1.0.0",
+    "isNsfw": false,
+    "sourceCodeUrl": "https://raw.githubusercontent.com/89maro27-cmyk/mangayomi-baekhapjoa/main/manga/baekhapjoa.js",
+    "iconUrl": "https://tistory1.daumcdn.net/tistory/3018532/attach/b9aa46455f8d487ebe8b805de065551c",
+    "apiUrl": ""
+  }
+]
