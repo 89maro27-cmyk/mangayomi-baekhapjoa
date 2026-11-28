@@ -33,10 +33,10 @@
     "name": "LilyReader 만화",
     "lang": "ko",
     "baseUrl": "https://www.lilyreader.online",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "isNsfw": false,
     "additionalParams": "{\"mode\":\"manga\"}",
-    "sourceCodeUrl": "https://raw.githubusercontent.com/89maro27-cmyk/mangayomi-baekhapjoa/main/manga/lilyreader.js",
+    "sourceCodeUrl": "https://raw.githubusercontent.com/89maro27-cmyk/mangayomi-baekhapjoa/main/manga/lilyreader.js?v=1.0.1",
     "iconUrl": "https://www.lilyreader.online/icons/icon.png",
     "apiUrl": ""
   },
@@ -54,10 +54,10 @@
     "name": "LilyReader 소설",
     "lang": "ko",
     "baseUrl": "https://www.lilyreader.online",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "isNsfw": false,
     "additionalParams": "{\"mode\":\"novel\"}",
-    "sourceCodeUrl": "https://raw.githubusercontent.com/89maro27-cmyk/mangayomi-baekhapjoa/main/manga/lilyreader.js",
+    "sourceCodeUrl": "https://raw.githubusercontent.com/89maro27-cmyk/mangayomi-baekhapjoa/main/manga/lilyreader.js?v=1.0.1",
     "iconUrl": "https://www.lilyreader.online/icons/icon.png",
     "apiUrl": ""
   }
