@@ -4,7 +4,7 @@ const mangayomiSources = [
     name: "LilyReader 만화",
     lang: "ko",
     baseUrl: "https://www.lilyreader.online",
-    version: "1.0.0",
+    version: "1.0.1",
     isNsfw: false,
     itemType: 0,
     isManga: true,
@@ -15,7 +15,7 @@ const mangayomiSources = [
     name: "LilyReader 소설",
     lang: "ko",
     baseUrl: "https://www.lilyreader.online",
-    version: "1.0.0",
+    version: "1.0.1",
     isNsfw: false,
     itemType: 2,
     isManga: false,
@@ -105,7 +105,7 @@ function normalizeCoverUrl(url) {
   } else if (u.startsWith("//")) {
     u = "https:" + u;
   }
-  if (/^http:\/\/(?:dcimg|dccdn)[a-z0-9-]*\.dcinside\.(?:co\.kr|com)/i.test(u)) {
+  if (/^http:\/\/(?:dcimg|dccdn|image)[a-z0-9-]*\.dcinside\.(?:co\.kr|com)/i.test(u)) {
     u = u.replace(/^http:/i, "https:");
   }
   if (!/^https?:\/\/[^\s\\]+$/i.test(u)) return "";
@@ -116,7 +116,7 @@ function normalizeDcImageUrl(url) {
   let u = decodeEntities(String(url || "")).trim();
   if (!u) return "";
   if (u.startsWith("//")) u = "https:" + u;
-  if (/^http:\/\/(?:dcimg|dccdn)[a-z0-9-]*\.dcinside\.(?:co\.kr|com)/i.test(u)) {
+  if (/^http:\/\/(?:dcimg|dccdn|image)[a-z0-9-]*\.dcinside\.(?:co\.kr|com)/i.test(u)) {
     u = u.replace(/^http:/i, "https:");
   }
   if (!/^https?:\/\/[^\s\\]+$/i.test(u)) return "";
@@ -275,7 +275,7 @@ class DefaultExtension extends MProvider {
     return {
       list: slice.map((s) => ({
         name: s.title,
-        link: `/series/${s.id}`,
+        link: `/read.html?series=${s.id}`,
         imageUrl: showThumbs ? s.cover : ""
       })),
       hasNextPage: start + PAGE_SIZE < items.length
@@ -343,7 +343,8 @@ class DefaultExtension extends MProvider {
   }
 
   async getDetail(url) {
-    const m = /\/series\/([^/?#]+)/.exec(String(url || ""));
+    const raw = String(url || "");
+    const m = /[?&]series=([^&#]+)/.exec(raw) || /\/series\/([^/?#]+)/.exec(raw);
     if (!m) {
       throw new Error("올바른 LilyReader 작품 주소가 아닙니다.");
     }
@@ -363,13 +364,13 @@ class DefaultExtension extends MProvider {
 
     const chapters = [...series.episodes].reverse().map((ep) => ({
       name: ep.title,
-      url: `/board/lilyfever/${ep.id}`,
+      url: `/read.html?series=${series.id}&episode=${ep.id}`,
       dateUpload: ep.dateUpload
     }));
 
     return {
       name: series.title,
-      link: `/series/${series.id}`,
+      link: `/read.html?series=${series.id}`,
       imageUrl: series.cover,
       author: "LilyReader (대세는 백합 갤러리)",
       description: `태그: ${series.tags.join(", ") || "없음"} (총 ${chapters.length}화)`,
@@ -381,41 +382,42 @@ class DefaultExtension extends MProvider {
 
   async fetchDcPostHtml(postId) {
     const targetUrl = `${DC_BASE}/board/lilyfever/${postId}`;
-    try {
-      const direct = await this.client.get(targetUrl, this.getHeaders());
-      const body = String(direct.body || "");
-      if (
-        direct.statusCode >= 200 &&
-        direct.statusCode < 300 &&
-        /class=["'][^"']*(?:thum-txtin|write_div)/i.test(body)
-      ) {
-        return body;
+    const hasPostBody = (body) => /class=["'][^"']*(?:thum-txtin|write_div)/i.test(String(body || ""));
+    const proxyHeaders = {
+      "User-Agent": USER_AGENT,
+      "Content-Type": "application/json",
+      Origin: "https://www.lilyreader.online",
+      Referer: "https://www.lilyreader.online/"
+    };
+
+    for (const payload of [{ url: targetUrl }, JSON.stringify({ url: targetUrl })]) {
+      try {
+        const proxyRes = await this.client.post(CORS_PROXY, proxyHeaders, payload);
+        if (proxyRes.statusCode >= 200 && proxyRes.statusCode < 300 && hasPostBody(proxyRes.body)) {
+          return String(proxyRes.body);
+        }
+      } catch (_) {
+        // Try next request shape or direct fallback
       }
-    } catch (_) {
-      // Fallback to LilyReader CORS proxy below
     }
 
-    const proxyRes = await this.client.post(
-      CORS_PROXY,
-      {
-        "User-Agent": USER_AGENT,
-        "Content-Type": "application/json",
-        Origin: "https://www.lilyreader.online",
-        Referer: "https://www.lilyreader.online/"
-      },
-      JSON.stringify({ url: targetUrl })
-    );
-    if (proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
-      const proxyBody = String(proxyRes.body || "");
-      if (/class=["'][^"']*(?:thum-txtin|write_div)/i.test(proxyBody)) {
-        return proxyBody;
+    try {
+      const direct = await this.client.get(targetUrl, this.getHeaders());
+      if (direct.statusCode >= 200 && direct.statusCode < 300 && hasPostBody(direct.body)) {
+        return String(direct.body);
       }
+    } catch (_) {
+      // Handled below
     }
+
     throw new Error(`게시글을 불러오지 못했습니다 (글번호: ${postId}).`);
   }
 
   extractPostId(url) {
-    const m = /\/(?:board\/lilyfever\/)?(\d+)(?:[?#]|$)/.exec(String(url || "").trim());
+    const raw = String(url || "").trim();
+    const m =
+      /[?&]episode=(\d+)/.exec(raw) ||
+      /\/(?:board\/lilyfever\/)?(\d+)(?:[?#]|$)/.exec(raw);
     if (!m) {
       throw new Error("올바른 게시글 주소가 아닙니다.");
     }
@@ -425,21 +427,48 @@ class DefaultExtension extends MProvider {
   async getPageList(url) {
     const postId = this.extractPostId(url);
     const rawHtml = await this.fetchDcPostHtml(postId);
-    const doc = new Document(
-      rawHtml.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
-    ).body;
+    const stripped = rawHtml.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+    const doc = new Document(stripped).body;
 
     const container = doc.selectFirst(".thum-txtin") || doc.selectFirst(".write_div") || doc;
     const seen = new Set();
     const urls = [];
 
-    for (const img of container.select("img")) {
-      if (attr(img, "class").includes("written_dccon")) continue;
-      const candidate = attr(img, "data-original") || attr(img, "src");
+    const addCandidate = (candidate) => {
       const normalized = normalizeDcImageUrl(candidate);
       if (normalized && !seen.has(normalized)) {
         seen.add(normalized);
         urls.push(normalized);
+      }
+    };
+
+    for (const img of container.select("img")) {
+      if (attr(img, "class").includes("written_dccon")) continue;
+      addCandidate(attr(img, "data-original") || attr(img, "src"));
+    }
+
+    if (!urls.length) {
+      const bodyMatch =
+        /<div[^>]*class=["'][^"']*(?:thum-txtin|write_div)[^"']*["'][^>]*>([\s\S]*?)<div[^>]*class=["'][^"']*gall-thum-btm/i.exec(
+          stripped
+        ) ||
+        /<div[^>]*class=["'][^"']*(?:thum-txtin|write_div)[^"']*["'][^>]*>([\s\S]*)/i.exec(
+          stripped
+        );
+      const slice = bodyMatch ? bodyMatch[1] : stripped;
+      const imgRegex = /<img\b[^>]*>/gi;
+      let m;
+      while ((m = imgRegex.exec(slice)) !== null) {
+        const tag = m[0];
+        if (/written_dccon/i.test(tag)) continue;
+        const orig =
+          /\bdata-original=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i.exec(tag);
+        const src = /\bsrc=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i.exec(tag);
+        addCandidate(
+          (orig && (orig[1] || orig[2] || orig[3])) ||
+            (src && (src[1] || src[2] || src[3])) ||
+            ""
+        );
       }
     }
 
